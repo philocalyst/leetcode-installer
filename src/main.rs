@@ -240,20 +240,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let description = data.data.question.content.clone();
 
             // Make it beautiful markdown
-            let description = html2md::parse_html(&description);
+            let mut description = html2md::parse_html(&description);
 
             println!("{slug}");
 
-            let pair: bool = false;
-            // Add in language tags
-            description.split("\n").into_iter().for_each(|line| {
-                if line.starts_with("```") && !pair {
-                    line = line + slug;
-                    pair = true;
-                } else if line.starts_with("```") {
-                    pair = false;
-                }
-            });
+            // Add in the language tags MANUALLY :(
+            let mut pair = false;
+            description = description
+                .split('\n')
+                .map(|line| {
+                    if line.starts_with("```") && !pair {
+                        pair = true;
+                        format!("{}{}", line, slug)
+                    } else if line.starts_with("```") {
+                        pair = false;
+                        line.to_string()
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("\n");
 
             let mut query = Query::insert()
                 .into_table(Entries::Table)
