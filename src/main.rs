@@ -201,15 +201,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Build out the storage solution
     build_db(&connection)?;
 
-    let mut query = Query::insert()
-        .into_table(Entries::Table)
-        .columns([Entries::Name])
-        .to_owned();
-
-    query.values(["hi".into()])?;
-
-    connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
-
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
     let session = env::var("LEETCODE_SESSION")?;
@@ -220,6 +211,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut skip = 0;
     let limit = 100;
 
+    let mut query = Query::insert()
+        .into_table(Entries::Table)
+        .columns([Entries::Id, Entries::Name, Entries::PremiumStatus])
+        .to_owned();
+
     loop {
         // Fetch a page of questions
         let page = QuestionRequest::new(limit, skip).send().await?;
@@ -228,8 +224,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             break;
         }
 
-        for q in questions {
-            let slug = q.title_slug.clone();
+        for question in questions {
+            println!("{:?}", question);
+            let id = question.frontend_question_id.parse::<i32>()?;
+            query.values([id.into(), question.title.into(), question.paid_only.into()])?;
+
+            println!("{id}");
+
+            connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
+            let slug = question.title_slug.clone();
             // Fetch the editor data for this problem
             let qdata = EditorDataRequest::new(slug.clone()).send().await?;
             let lang = Language::Cpp;
