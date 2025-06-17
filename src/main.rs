@@ -190,6 +190,16 @@ fn build_db(db: &Connection) -> Result<&Connection, Box<dyn Error>> {
     Ok(db)
 }
 
+fn build_language_list(lang_data: QuestionEditorData) -> Result<(), Box<dyn Error>> {
+    lang_data
+        .question
+        .code_snippets
+        .iter()
+        .for_each(|item| println!("{:?}", item.lang));
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Obtain a connection with the store
