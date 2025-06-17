@@ -211,11 +211,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut skip = 0;
     let limit = 100;
 
-    let mut query = Query::insert()
-        .into_table(Entries::Table)
-        .columns([Entries::Id, Entries::Name, Entries::PremiumStatus])
-        .to_owned();
-
     loop {
         // Fetch a page of questions
         let page = QuestionRequest::new(limit, skip).send().await?;
@@ -225,11 +220,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         for question in questions {
-            println!("{:?}", question);
-            let id = question.frontend_question_id.parse::<i32>()?;
-            query.values([id.into(), question.title.into(), question.paid_only.into()])?;
+            let mut query = Query::insert()
+                .into_table(Entries::Table)
+                .columns([Entries::Id, Entries::Name, Entries::PremiumStatus])
+                .to_owned();
 
-            println!("{id}");
+            query.values([
+                question.frontend_question_id.parse::<i32>()?.into(),
+                question.title.into(),
+                question.paid_only.into(),
+            ])?;
 
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
             let slug = question.title_slug.clone();
