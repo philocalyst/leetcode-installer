@@ -1,6 +1,6 @@
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::language::Language;
-use leetcode_core::{EditorDataRequest, QuestionRequest, init};
+use leetcode_core::{EditorDataRequest, QuestionRequest};
 use rusqlite;
 use sea_query::*;
 use std::error::Error;
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let session = env::var("LEETCODE_SESSION")?;
 
     // Initialize the HTTP client
-    init(&csrf, &session).await?;
+    leetcode_core::init(&csrf, &session).await?;
 
     let mut skip = 0;
     let limit = 100;
