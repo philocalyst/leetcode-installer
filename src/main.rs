@@ -220,21 +220,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
 
         for question in questions {
+            // Fetch the editor data for this problem
+            let slug = question.title_slug;
+            let qdata = EditorDataRequest::new(slug.clone()).send().await?;
+
+            let description = qdata.data.question.content.clone();
+
             let mut query = Query::insert()
                 .into_table(Entries::Table)
-                .columns([Entries::Id, Entries::Name, Entries::PremiumStatus])
+                .columns([
+                    Entries::Id,
+                    Entries::Name,
+                    Entries::PremiumStatus,
+                    Entries::Description,
+                ])
                 .to_owned();
 
             query.values([
                 question.frontend_question_id.parse::<i32>()?.into(),
                 question.title.into(),
                 question.paid_only.into(),
+                description.into(),
             ])?;
 
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
-            let slug = question.title_slug.clone();
-            // Fetch the editor data for this problem
-            let qdata = EditorDataRequest::new(slug.clone()).send().await?;
+
             let lang = Language::Cpp;
 
             // If there is a C++ snippet, write it out
