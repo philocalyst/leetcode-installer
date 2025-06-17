@@ -192,7 +192,7 @@ fn build_db(db: &Connection) -> Result<&Connection, Box<dyn Error>> {
     Ok(db)
 }
 
-fn build_language_list(lang_data: QuestionEditorData) -> Vec<Language> {
+fn build_language_list(lang_data: &QuestionEditorData) -> Vec<Language> {
     let languages: Vec<Language> = lang_data
         .question
         .code_snippets
@@ -243,18 +243,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Make it beautiful markdown
             let mut description = html2md::parse_html(&description);
 
-            println!("{slug}");
+            let languages = build_language_list(&data.data);
 
+            let slug = languages.get(1).unwrap();
+
+            let mut closing_code_block_lines: Vec<usize> = Vec::new();
+
+            let mut count: usize = 0;
             // Add in the language tags MANUALLY :(
             let mut pair = false;
             description = description
                 .split('\n')
                 .map(|line| {
+                    count += 1;
                     if line.starts_with("```") && !pair {
                         pair = true;
-                        format!("{}{}", line, slug)
+                        format!("{}{}", line, slug.to_string())
                     } else if line.starts_with("```") {
                         pair = false;
+                        closing_code_block_lines.push(count);
                         line.to_string()
                     } else {
                         line.to_string()
