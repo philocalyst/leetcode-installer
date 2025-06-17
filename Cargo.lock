@@ -912,6 +912,7 @@ dependencies = [
 name = "leetcode-installer"
 version = "0.1.0"
 dependencies = [
+ "html2md",
  "leetcode-core",
  "limbo",
  "rusqlite",
