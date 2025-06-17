@@ -6,7 +6,8 @@ use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
 
-// Define the table and column identifiers using enums
+use sea_query::*;
+
 #[derive(Iden)]
 enum Entries {
     Table,
@@ -29,6 +30,20 @@ enum EntryTags {
     Table,
     EntryId,
     TagId,
+}
+
+#[derive(Iden)]
+enum ProgrammingLanguages {
+    Table,
+    Id,
+    Name,
+}
+
+#[derive(Iden)]
+enum EntryLanguages {
+    Table,
+    EntryId,
+    LanguageId,
 }
 
 fn create_entries_table() -> TableCreateStatement {
