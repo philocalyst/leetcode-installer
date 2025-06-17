@@ -1,7 +1,7 @@
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::language::Language;
 use leetcode_core::{EditorDataRequest, QuestionRequest, init};
-use limbo;
+use rusqlite;
 use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
@@ -107,16 +107,21 @@ fn create_entry_tags_table() -> TableCreateStatement {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let source = limbo::Builder::new_local("./db.sqlite3");
+    use rusqlite::Connection;
 
-    let db = source.build().await?;
-
-    let db = db.connect()?;
+    let db = Connection::open_with_flags(
+        "./db.sqlite3",
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
+    )?;
 
     let entries_table = create_entries_table();
+    let tags_table = create_tags_table();
+    let entry_tags_table = create_entry_tags_table();
 
-    db.execute(&entries_table.to_string(SqliteQueryBuilder), ())
-        .await?;
+    // Execute our sqlite statements
+    db.execute(&entries_table.to_string(SqliteQueryBuilder), ())?;
+    db.execute(&entry_tags_table.to_string(SqliteQueryBuilder), ())?;
+    db.execute(&tags_table.to_string(SqliteQueryBuilder), ())?;
 
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
