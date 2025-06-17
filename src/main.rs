@@ -172,8 +172,7 @@ fn create_entry_languages_table() -> TableCreateStatement {
         .to_owned()
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn build_db() -> Result<(), Box<dyn Error>> {
     let db = Connection::open_with_flags(
         "./db.sqlite3",
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
@@ -196,6 +195,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     db.execute(&tags_table.to_string(SqliteQueryBuilder), ())?;
     db.execute(&languages_table.to_string(SqliteQueryBuilder), ())?;
     db.execute(&entry_languages_table.to_string(SqliteQueryBuilder), ())?;
+    Ok(())
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    // Build out the storage solution
+    build_db()?;
 
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
