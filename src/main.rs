@@ -55,7 +55,6 @@ fn create_entries_table() -> TableCreateStatement {
             ColumnDef::new(Entries::Id)
                 .integer()
                 .not_null()
-                .auto_increment()
                 .primary_key(),
         )
         .col(ColumnDef::new(Entries::Name).string_len(255).not_null())
