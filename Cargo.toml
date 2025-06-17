@@ -5,4 +5,7 @@ edition = "2024"
 
 [dependencies]
 leetcode-core = "0.5.2"
+limbo = "0.0.20"
+rusqlite = "0.36.0"
+sea-query = "0.32.6"
 tokio = { version = "1.45.1", features = ["full"] }
