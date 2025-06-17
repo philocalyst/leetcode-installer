@@ -192,12 +192,12 @@ fn build_db(db: &Connection) -> Result<&Connection, Box<dyn Error>> {
     Ok(db)
 }
 
-fn build_language_list(lang_data: QuestionEditorData) -> Vec<String> {
-    let languages: Vec<String> = lang_data
+fn build_language_list(lang_data: QuestionEditorData) -> Vec<Language> {
+    let languages: Vec<Language> = lang_data
         .question
         .code_snippets
         .iter()
-        .map(|item| item.lang.clone())
+        .map(|item| item.lang_slug.clone())
         .collect();
 
     languages
