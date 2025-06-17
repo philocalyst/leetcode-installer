@@ -1,4 +1,6 @@
+use html2md;
 use leetcode_core::GQLLeetcodeRequest;
+use leetcode_core::types::editor_data::QuestionEditorData;
 use leetcode_core::types::language::Language;
 use leetcode_core::{EditorDataRequest, QuestionRequest};
 use rusqlite;
@@ -232,9 +234,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
         for question in questions {
             // Fetch the editor data for this problem
             let slug = question.title_slug;
-            let qdata = EditorDataRequest::new(slug.clone()).send().await?;
+            let data = EditorDataRequest::new(slug.clone()).send().await?;
 
-            let description = qdata.data.question.content.clone();
+            // Get the HTML description
+            let description = data.data.question.content.clone();
+
+            // Make it beautiful markdown
+            let description = html2md::parse_html(&description);
 
             let mut query = Query::insert()
                 .into_table(Entries::Table)
@@ -258,8 +264,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let lang = Language::Cpp;
 
             // If there is a C++ snippet, write it out
-            if let Some(code) = qdata.get_editor_data_by_language(&lang) {
-                let filename = qdata.get_filename(&lang)?;
+            if let Some(code) = data.get_editor_data_by_language(&lang) {
+                let filename = data.get_filename(&lang)?;
                 fs::create_dir_all("cpp")?;
                 let path = format!("cpp/{}", filename);
                 fs::write(&path, code)?;
