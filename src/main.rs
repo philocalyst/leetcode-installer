@@ -7,8 +7,6 @@ use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
 
-use sea_query::*;
-
 #[derive(Iden)]
 enum Entries {
     Table,
@@ -171,7 +169,7 @@ fn create_entry_languages_table() -> TableCreateStatement {
         .to_owned()
 }
 
-fn build_db(db: Connection) -> Result<Connection, Box<dyn Error>> {
+fn build_db(db: &Connection) -> Result<&Connection, Box<dyn Error>> {
     // Main table for all entries
     let entries_table = create_entries_table();
 
@@ -195,13 +193,13 @@ fn build_db(db: Connection) -> Result<Connection, Box<dyn Error>> {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Obtain a connection with the store
-    let mut connection: Connection = Connection::open_with_flags(
+    let connection: Connection = Connection::open_with_flags(
         "./db.sqlite3",
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
     )?;
 
     // Build out the storage solution
-    connection = build_db(connection)?;
+    build_db(&connection)?;
 
     let mut query = Query::insert()
         .into_table(Entries::Table)
