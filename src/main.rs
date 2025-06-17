@@ -1,6 +1,7 @@
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::language::Language;
 use leetcode_core::{EditorDataRequest, QuestionRequest, init};
+use limbo;
 use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
@@ -32,6 +33,17 @@ enum EntryTags {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let source = limbo::Builder::new_local("./db.sqlite3");
+
+    let db = source.build().await?;
+
+    let db = db.connect()?;
+
+    let entries_table = create_entries_table();
+
+    db.execute(&entries_table.to_string(SqliteQueryBuilder), ())
+        .await?;
+
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
     let session = env::var("LEETCODE_SESSION")?;
