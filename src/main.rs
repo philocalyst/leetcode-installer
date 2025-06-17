@@ -1,8 +1,34 @@
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::language::Language;
 use leetcode_core::{EditorDataRequest, QuestionRequest, init};
+use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
+
+// Define the table and column identifiers using enums
+#[derive(Iden)]
+enum Entries {
+    Table,
+    Id,
+    Name,
+    PremiumStatus,
+    Description,
+    CreatedAt,
+}
+
+#[derive(Iden)]
+enum Tags {
+    Table,
+    Id,
+    Name,
+}
+
+#[derive(Iden)]
+enum EntryTags {
+    Table,
+    EntryId,
+    TagId,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
