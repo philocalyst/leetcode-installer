@@ -204,6 +204,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Build out the storage solution
     connection = build_db(connection)?;
 
+    let mut query = Query::insert()
+        .into_table(Entries::Table)
+        .columns([Entries::Name])
+        .to_owned();
+
+    query.values(["hi".into()])?;
+
+    connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
+
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
     let session = env::var("LEETCODE_SESSION")?;
