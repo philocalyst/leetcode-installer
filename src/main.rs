@@ -2,6 +2,7 @@ use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::language::Language;
 use leetcode_core::{EditorDataRequest, QuestionRequest};
 use rusqlite;
+use rusqlite::Connection;
 use sea_query::*;
 use std::error::Error;
 use std::{env, fs};
@@ -96,8 +97,8 @@ fn create_entry_tags_table() -> TableCreateStatement {
     Table::create()
         .table(EntryTags::Table)
         .if_not_exists()
-        .col(ColumnDef::new(EntryTags::EntryId).integer())
-        .col(ColumnDef::new(EntryTags::TagId).integer())
+        .col(ColumnDef::new(EntryTags::EntryId).integer().not_null())
+        .col(ColumnDef::new(EntryTags::TagId).integer().not_null())
         .primary_key(
             Index::create()
                 .col(EntryTags::EntryId)
@@ -120,23 +121,81 @@ fn create_entry_tags_table() -> TableCreateStatement {
         .to_owned()
 }
 
+fn create_languages_table() -> TableCreateStatement {
+    Table::create()
+        .table(ProgrammingLanguages::Table)
+        .if_not_exists()
+        .col(
+            ColumnDef::new(ProgrammingLanguages::Id)
+                .integer()
+                .not_null()
+                .auto_increment()
+                .primary_key(),
+        )
+        .col(
+            ColumnDef::new(ProgrammingLanguages::Name)
+                .string_len(50)
+                .not_null(),
+        )
+        .to_owned()
+}
+
+fn create_entry_languages_table() -> TableCreateStatement {
+    Table::create()
+        .table(EntryLanguages::Table)
+        .if_not_exists()
+        .col(ColumnDef::new(EntryLanguages::EntryId).integer().not_null())
+        .col(
+            ColumnDef::new(EntryLanguages::LanguageId)
+                .integer()
+                .not_null(),
+        )
+        .primary_key(
+            Index::create()
+                .col(EntryLanguages::EntryId)
+                .col(EntryLanguages::LanguageId),
+        )
+        .foreign_key(
+            ForeignKey::create()
+                .name("fk_entry_languages_entry_id")
+                .from(EntryLanguages::Table, EntryLanguages::EntryId)
+                .to(Entries::Table, Entries::Id)
+                .on_delete(ForeignKeyAction::Cascade),
+        )
+        .foreign_key(
+            ForeignKey::create()
+                .name("fk_entry_languages_language_id")
+                .from(EntryLanguages::Table, EntryLanguages::LanguageId)
+                .to(ProgrammingLanguages::Table, ProgrammingLanguages::Id)
+                .on_delete(ForeignKeyAction::Cascade),
+        )
+        .to_owned()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    use rusqlite::Connection;
-
     let db = Connection::open_with_flags(
         "./db.sqlite3",
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
     )?;
 
+    // Main table for all entries
     let entries_table = create_entries_table();
+
+    // Languages table and the meta for many-to-many
     let tags_table = create_tags_table();
     let entry_tags_table = create_entry_tags_table();
 
-    // Execute our sqlite statements
+    // Languages table and the meta for many-to-many
+    let languages_table = create_languages_table();
+    let entry_languages_table = create_entry_languages_table();
+
+    // Execute our sqlite statements and build the schema
     db.execute(&entries_table.to_string(SqliteQueryBuilder), ())?;
     db.execute(&entry_tags_table.to_string(SqliteQueryBuilder), ())?;
     db.execute(&tags_table.to_string(SqliteQueryBuilder), ())?;
+    db.execute(&languages_table.to_string(SqliteQueryBuilder), ())?;
+    db.execute(&entry_languages_table.to_string(SqliteQueryBuilder), ())?;
 
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
