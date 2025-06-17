@@ -252,7 +252,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let mut count: usize = 0;
             // Add in the language tags MANUALLY :(
             let mut pair = false;
-            description = description
+            let lines = description
                 .split('\n')
                 .map(|line| {
                     count += 1;
@@ -265,6 +265,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         line.to_string()
                     } else {
                         line.to_string()
+                    }
+                })
+                .collect::<Vec<String>>();
+
+            let lines_to_remove: std::collections::HashSet<usize> = closing_code_block_lines
+                .iter()
+                .filter_map(|&line_num| {
+                    if line_num > 1 {
+                        Some(line_num - 1) // Line numbers are 1-indexed, so subtract 1 to get the previous line
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            description = lines
+                .into_iter()
+                .enumerate()
+                .filter_map(|(idx, line)| {
+                    let line_number = idx + 1; // Convert to 1-indexed
+                    if lines_to_remove.contains(&line_number) {
+                        None // Skip this line
+                    } else {
+                        Some(line)
                     }
                 })
                 .collect::<Vec<String>>()
