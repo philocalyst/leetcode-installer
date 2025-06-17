@@ -242,6 +242,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Make it beautiful markdown
             let description = html2md::parse_html(&description);
 
+            println!("{slug}");
+
+            let pair: bool = false;
+            // Add in language tags
+            description.split("\n").into_iter().for_each(|line| {
+                if line.starts_with("```") && !pair {
+                    line = line + slug;
+                    pair = true;
+                } else if line.starts_with("```") {
+                    pair = false;
+                }
+            });
+
             let mut query = Query::insert()
                 .into_table(Entries::Table)
                 .columns([
