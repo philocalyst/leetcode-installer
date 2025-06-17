@@ -31,6 +31,80 @@ enum EntryTags {
     TagId,
 }
 
+fn create_entries_table() -> TableCreateStatement {
+    Table::create()
+        .table(Entries::Table)
+        .if_not_exists()
+        .col(
+            ColumnDef::new(Entries::Id)
+                .integer()
+                .not_null()
+                .auto_increment()
+                .primary_key(),
+        )
+        .col(ColumnDef::new(Entries::Name).string_len(255).not_null())
+        .col(
+            ColumnDef::new(Entries::PremiumStatus)
+                .boolean()
+                .default(false),
+        )
+        .col(ColumnDef::new(Entries::Description).text())
+        .col(
+            ColumnDef::new(Entries::CreatedAt)
+                .timestamp()
+                .default(Expr::current_timestamp()),
+        )
+        .to_owned()
+}
+
+fn create_tags_table() -> TableCreateStatement {
+    Table::create()
+        .table(Tags::Table)
+        .if_not_exists()
+        .col(
+            ColumnDef::new(Tags::Id)
+                .integer()
+                .not_null()
+                .auto_increment()
+                .primary_key(),
+        )
+        .col(
+            ColumnDef::new(Tags::Name)
+                .string_len(100)
+                .unique_key()
+                .not_null(),
+        )
+        .to_owned()
+}
+
+fn create_entry_tags_table() -> TableCreateStatement {
+    Table::create()
+        .table(EntryTags::Table)
+        .if_not_exists()
+        .col(ColumnDef::new(EntryTags::EntryId).integer())
+        .col(ColumnDef::new(EntryTags::TagId).integer())
+        .primary_key(
+            Index::create()
+                .col(EntryTags::EntryId)
+                .col(EntryTags::TagId),
+        )
+        .foreign_key(
+            ForeignKey::create()
+                .name("fk_entry_tags_entry_id")
+                .from(EntryTags::Table, EntryTags::EntryId)
+                .to(Entries::Table, Entries::Id)
+                .on_delete(ForeignKeyAction::Cascade),
+        )
+        .foreign_key(
+            ForeignKey::create()
+                .name("fk_entry_tags_tag_id")
+                .from(EntryTags::Table, EntryTags::TagId)
+                .to(Tags::Table, Tags::Id)
+                .on_delete(ForeignKeyAction::Cascade),
+        )
+        .to_owned()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let source = limbo::Builder::new_local("./db.sqlite3");
