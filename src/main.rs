@@ -245,8 +245,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             let languages = build_language_list(&data.data);
 
-            let slug = languages.get(1).unwrap();
-
             let mut closing_code_block_lines: Vec<usize> = Vec::new();
 
             let mut count: usize = 0;
@@ -258,7 +256,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     count += 1;
                     if line.starts_with("```") && !pair {
                         pair = true;
-                        format!("{}{}", line, slug.to_string())
+                        format!("{}{}", line, "python")
                     } else if line.starts_with("```") {
                         pair = false;
                         closing_code_block_lines.push(count);
@@ -305,7 +303,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .to_owned();
 
             query.values([
-                question.frontend_question_id.parse::<i32>()?.into(),
+                question.frontend_question_id.into(),
                 question.title.into(),
                 question.paid_only.into(),
                 description.into(),
