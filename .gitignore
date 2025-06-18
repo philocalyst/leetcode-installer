@@ -1,1 +1,5 @@
 /target
+src/cpp
+src/db.sqlite3
+src/db.sqlite3-shm
+src/test.md
