@@ -24,6 +24,7 @@ enum Tags {
     Table,
     Id,
     Name,
+    Slug,
 }
 
 #[derive(Iden)]
@@ -85,6 +86,12 @@ fn create_tags_table() -> TableCreateStatement {
         )
         .col(
             ColumnDef::new(Tags::Name)
+                .string_len(100)
+                .unique_key()
+                .not_null(),
+        )
+        .col(
+            ColumnDef::new(Tags::Slug)
                 .string_len(100)
                 .unique_key()
                 .not_null(),
@@ -243,6 +250,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Make it beautiful markdown
             let mut description = html2md::parse_html(&description);
 
+            // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
+            let tags = question.topic_tags.unwrap_or(vec![]);
+
             let languages = build_language_list(&data.data);
 
             let mut closing_code_block_lines: Vec<usize> = Vec::new();
@@ -326,5 +336,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         skip += limit;
     }
 
+    // No errors, we're good.
     Ok(())
 }
