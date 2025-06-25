@@ -1,5 +1,7 @@
+use core::panic;
 use html2md;
 use leetcode_core::GQLLeetcodeRequest;
+use leetcode_core::errors::LcAppError;
 use leetcode_core::types::editor_data::QuestionEditorData;
 use leetcode_core::types::language::Language;
 use leetcode_core::types::problemset_question_list::TopicTag;
@@ -238,8 +240,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize the HTTP client
     leetcode_core::init(&csrf, &session).await?;
 
-    let mut skip = 0;
-    let limit = 100;
+    let mut skip = 150;
+    let limit = 150;
 
     loop {
         // Fetch a page of questions
@@ -251,20 +253,59 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         for question in questions {
             // Fetch the editor data for this problem
-            let slug = question.title_slug;
-            let data = EditorDataRequest::new(slug.clone()).send().await?;
+            let slug = question.title_slug.clone();
 
             // Parse the ID into a u32 (why is it a string chat)
             let question_id: u32 = question.frontend_question_id.parse()?;
 
-            // Get the HTML description
-            let description = data.data.question.content.clone();
+            let mut query = Query::insert()
+                .into_table(Entries::Table)
+                .columns([
+                    Entries::Id,
+                    Entries::Name,
+                    Entries::PremiumStatus,
+                    Entries::Description,
+                    Entries::AcRate,
+                    Entries::Difficulty,
+                ])
+                .on_conflict(
+                    OnConflict::column(Entries::Id)
+                        .update_column(Entries::Id)
+                        .to_owned(),
+                )
+                .to_owned();
+
+            // Premium questions look different...
+            if question.paid_only {
+                query.values([
+                    question.frontend_question_id.into(),
+                    question.title.into(),
+                    question.paid_only.into(),
+                    "".into(),
+                    question.ac_rate.into(),
+                    question.difficulty.into(),
+                ])?;
+            } else {
+                let data = EditorDataRequest::new(slug.clone()).send().await?;
+
+                // Get the HTML description
+                let description = data.data.question.content.clone();
+
+                query.values([
+                    question.frontend_question_id.into(),
+                    question.title.into(),
+                    question.paid_only.into(),
+                    description.into(),
+                    question.ac_rate.into(),
+                    question.difficulty.into(),
+                ])?;
+            }
 
             // Make it beautiful markdown
             let mut description = html2md::parse_html(&description);
 
             // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
-            let tags = question.topic_tags.unwrap_or(vec![]);
+            let tags = &question.topic_tags.unwrap_or(vec![]);
             establish_tags(&connection, &tags, question_id)?;
 
             // Get the questions supported languages
@@ -318,32 +359,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 .collect::<Vec<String>>()
                 .join("\n");
 
-            let mut query = Query::insert()
-                .into_table(Entries::Table)
-                .columns([
-                    Entries::Id,
-                    Entries::Name,
-                    Entries::PremiumStatus,
-                    Entries::Description,
-                    Entries::AcRate,
-                    Entries::Difficulty,
-                ])
-                .on_conflict(
-                    OnConflict::column(Entries::Id)
-                        .update_column(Entries::Id)
-                        .to_owned(),
-                )
-                .to_owned();
-
-            query.values([
-                question.frontend_question_id.into(),
-                question.title.into(),
-                question.paid_only.into(),
-                description.into(),
-                question.ac_rate.into(),
-                question.difficulty.into(),
-            ])?;
-
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
 
             let lang = Language::C;
@@ -353,8 +368,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Get the filename
                 let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
 
-                fs::create_dir_all("cpp")?;
-                let path = format!("cpp/{}", filename);
+                fs::create_dir_all("code")?;
+                let path = format!("code/{}", filename);
                 fs::write(&path, code)?;
                 println!("Saved {}", path);
             }
