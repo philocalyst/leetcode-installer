@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 html2md = "0.2.15"
-leetcode-core = "0.5.2"
+leetcode-core = {git = "https://github.com/philocalyst/leetcode-tui"}
 limbo = "0.0.20"
 rusqlite = "0.36.0"
 sea-query = "0.32.6"

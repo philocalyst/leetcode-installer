@@ -240,8 +240,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize the HTTP client
     leetcode_core::init(&csrf, &session).await?;
 
-    let mut skip = 150;
-    let limit = 150;
+    let mut skip = 170;
+    let limit = 170;
 
     loop {
         // Fetch a page of questions
@@ -254,6 +254,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         for question in questions {
             // Fetch the editor data for this problem
             let slug = question.title_slug.clone();
+
             // Parse the ID into a u32 (why is it a string chat)
             let question_id: u32 = question.frontend_question_id.parse()?;
 
@@ -276,11 +277,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Get the questions supported languages
                 let languages = build_language_list(&data.data);
                 establish_languages(&connection, &languages, question_id)?;
+
                 let lang = Language::C;
                 // If there is a language snippet, write it out
                 if let Some(code) = data.get_editor_data_by_language(&lang) {
                     // Get the filename
                     let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
+
+                    // Create the code source directory
                     fs::create_dir_all("code")?;
                     let path = format!("code/{}", filename);
                     fs::write(&path, code)?;
@@ -396,15 +400,7 @@ fn establish_tags(
 
         conn.execute(&tag_insert.to_string(SqliteQueryBuilder), ())?;
 
-        // Get the tag ID
-        let tag_select = Query::select()
-            .column(Tags::Id)
-            .from(Tags::Table)
-            .and_where(Expr::col(Tags::Slug).eq(&tag.slug))
-            .to_owned();
-
-        let mut stmt = conn.prepare(&tag_select.to_string(SqliteQueryBuilder))?;
-        let tag_id: i32 = stmt.query_row([], |row| row.get(0))?;
+        let tag_id: u32 = tag.id.parse()?;
 
         // Create entry-tag relationship
         let entry_tag_insert = Query::insert()
@@ -441,15 +437,7 @@ fn establish_languages(
 
         conn.execute(&lang_insert.to_string(SqliteQueryBuilder), ())?;
 
-        // Get the language ID
-        let lang_select = Query::select()
-            .column(Languages::Id)
-            .from(Languages::Table)
-            .and_where(Expr::col(Languages::Name).eq(&lang_name))
-            .to_owned();
-
-        let mut stmt = conn.prepare(&lang_select.to_string(SqliteQueryBuilder))?;
-        let lang_id: i32 = stmt.query_row([], |row| row.get(0))?;
+        let lang_id: u32 = language.to_id();
 
         // Create entry-language relationship
         let entry_lang_insert = Query::insert()

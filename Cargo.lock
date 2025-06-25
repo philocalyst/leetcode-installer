@@ -905,8 +905,7 @@ dependencies = [
 [[package]]
 name = "leetcode-core"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "073b5893b04557230027a25d0b8b870855f742a950f73c6189dcad95ccf8b466"
+source = "git+https://github.com/philocalyst/leetcode-tui#dbc8f82b8f41ec5f9b269c05f7279c8b41fe292b"
 dependencies = [
  "async-trait",
  "html2md",
