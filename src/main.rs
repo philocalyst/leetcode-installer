@@ -408,7 +408,12 @@ fn establish_tags(
             .columns([EntryTags::EntryId, EntryTags::TagId])
             .values([question_id.into(), tag_id.into()])?
             .on_conflict(
-                OnConflict::columns([EntryTags::EntryId, EntryTags::TagId])
+                OnConflict::column(EntryTags::TagId) // Tag ID could change, or at least I feel it's more mutable
+                    .update_column(EntryTags::TagId)
+                    .to_owned(),
+            )
+            .on_conflict(
+                OnConflict::column(EntryTags::EntryId) // Entry ID is static so we shouldn't worry.
                     .do_nothing()
                     .to_owned(),
             )
@@ -445,7 +450,12 @@ fn establish_languages(
             .columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
             .values([question_id.into(), lang_id.into()])?
             .on_conflict(
-                OnConflict::columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
+                OnConflict::column(EntryLanguages::LanguageId) // Language ID could change, or at least I feel it's more mutable
+                    .update_column(EntryLanguages::LanguageId)
+                    .to_owned(),
+            )
+            .on_conflict(
+                OnConflict::column(EntryLanguages::EntryId) // Entry ID is static so we shouldn't worry.
                     .do_nothing()
                     .to_owned(),
             )
