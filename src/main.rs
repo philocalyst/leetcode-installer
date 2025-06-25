@@ -2,6 +2,7 @@ use html2md;
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::types::editor_data::QuestionEditorData;
 use leetcode_core::types::language::Language;
+use leetcode_core::types::problemset_question_list::TopicTag;
 use leetcode_core::{EditorDataRequest, QuestionRequest};
 use rusqlite;
 use rusqlite::Connection;
@@ -245,6 +246,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let slug = question.title_slug;
             let data = EditorDataRequest::new(slug.clone()).send().await?;
 
+            // Parse the ID into a u32 (why is it a string chat)
+            let question_id: u32 = question.frontend_question_id.parse()?;
+
             // Get the HTML description
             let description = data.data.question.content.clone();
 
@@ -253,6 +257,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
             let tags = question.topic_tags.unwrap_or(vec![]);
+
+            establish_tags(&connection, &tags, question_id)?;
 
             let languages = build_language_list(&data.data);
 
@@ -384,7 +390,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn establish_tags(conn: &Connection, tags: &Vec<EntryTags>) -> Result<(), Box<dyn Error>> {
+fn establish_tags(
+    conn: &Connection,
+    tags: &Vec<TopicTag>,
+    question_id: u32,
+) -> Result<(), Box<dyn Error>> {
     // Insert tags and create entry-tag relationships
     Ok(for tag in tags {
         // Insert tag if it doesn't exist
@@ -404,14 +414,14 @@ fn establish_tags(conn: &Connection, tags: &Vec<EntryTags>) -> Result<(), Box<dy
             .and_where(Expr::col(Tags::Slug).eq(&tag.slug))
             .to_owned();
 
-        let mut stmt = connection.prepare(&tag_select.to_string(SqliteQueryBuilder))?;
+        let mut stmt = conn.prepare(&tag_select.to_string(SqliteQueryBuilder))?;
         let tag_id: i32 = stmt.query_row([], |row| row.get(0))?;
 
         // Create entry-tag relationship
         let entry_tag_insert = Query::insert()
             .into_table(EntryTags::Table)
             .columns([EntryTags::EntryId, EntryTags::TagId])
-            .values([question.frontend_question_id.clone().into(), tag_id.into()])?
+            .values([question_id.into(), tag_id.into()])?
             .on_conflict(
                 OnConflict::columns([EntryTags::EntryId, EntryTags::TagId])
                     .do_nothing()
