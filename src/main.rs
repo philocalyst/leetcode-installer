@@ -345,7 +345,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             // If there is a C++ snippet, write it out
             if let Some(code) = data.get_editor_data_by_language(&lang) {
-                let filename = data.get_filename(&lang)?;
+                // Get the filename
+                let mut filename = data.get_filename(&lang)?;
+                let final_split = filename.rfind('_').expect("Infalliable");
+
+                // Remove the language identifier
+                let (filename, _) = filename.split_at(final_split);
+
                 fs::create_dir_all("cpp")?;
                 let path = format!("cpp/{}", filename);
                 fs::write(&path, code)?;
