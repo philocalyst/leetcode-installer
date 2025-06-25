@@ -17,6 +17,9 @@ enum Entries {
     Name,
     PremiumStatus,
     Description,
+    AcRate,
+    Difficulty,
+    Frequency,
     CreatedAt,
 }
 
@@ -59,6 +62,13 @@ fn create_entries_table() -> TableCreateStatement {
                 .not_null()
                 .primary_key(),
         )
+        .col(ColumnDef::new(Entries::AcRate).float().not_null())
+        .col(
+            ColumnDef::new(Entries::Difficulty)
+                .string_len(255)
+                .not_null(),
+        )
+        .col(ColumnDef::new(Entries::Frequency).float().not_null())
         .col(ColumnDef::new(Entries::Name).string_len(255).not_null())
         .col(
             ColumnDef::new(Entries::PremiumStatus)
@@ -274,7 +284,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     count += 1;
                     if line.starts_with("```") && !pair {
                         pair = true;
-                        format!("{}{}", line, "python")
+                        format!("{}{}", line, "python") // Python looks really good with the psuedocode
                     } else if line.starts_with("```") {
                         pair = false;
                         closing_code_block_lines.push(count);
@@ -317,6 +327,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     Entries::Name,
                     Entries::PremiumStatus,
                     Entries::Description,
+                    Entries::AcRate,
+                    Entries::Difficulty,
+                    Entries::Frequency,
                 ])
                 .to_owned();
 
@@ -325,6 +338,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 question.title.into(),
                 question.paid_only.into(),
                 description.into(),
+                question.ac_rate.into(),
+                question.difficulty.into(),
+                question.freq_bar.into(),
             ])?;
 
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;

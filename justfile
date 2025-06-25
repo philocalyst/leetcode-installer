@@ -12,7 +12,7 @@ output_directory := project_root + "/dist"
 build_directory := "target"
 
 system := `rustc --version --verbose |  grep '^host:' | awk '{print $2}'`
-main_package      := leet-stall
+main_package      := "leet-stall"
 
 # ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰ #
 #      Recipes      #
