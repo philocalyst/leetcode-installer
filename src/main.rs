@@ -281,7 +281,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     question.frontend_question_id.into(),
                     question.title.into(),
                     question.paid_only.into(),
-                    "".into(),
+                    "".into(), // Can't access the description of a paid question (right now)
                     question.ac_rate.into(),
                     question.difficulty.into(),
                 ])?;
@@ -290,6 +290,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 // Get the HTML description
                 let description = data.data.question.content.clone();
+
+                // Make it beautiful markdown
+                let mut description = html2md::parse_html(&description);
+
+                // Get the questions supported languages
+                let languages = build_language_list(&data.data);
+                establish_languages(&connection, &languages, question_id)?;
+
+                let lang = Language::C;
+
+                description = build_markdown(description)?;
+
+                // If there is a language snippet, write it out
+                if let Some(code) = data.get_editor_data_by_language(&lang) {
+                    // Get the filename
+                    let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
+
+                    fs::create_dir_all("code")?;
+                    let path = format!("code/{}", filename);
+                    fs::write(&path, code)?;
+                    println!("Saved {}", path);
+                }
 
                 query.values([
                     question.frontend_question_id.into(),
@@ -301,78 +323,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 ])?;
             }
 
-            // Make it beautiful markdown
-            let mut description = html2md::parse_html(&description);
-
             // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
             let tags = &question.topic_tags.unwrap_or(vec![]);
             establish_tags(&connection, &tags, question_id)?;
 
-            // Get the questions supported languages
-            let languages = build_language_list(&data.data);
-            establish_languages(&connection, &languages, question_id)?;
-
-            let mut closing_code_block_lines: Vec<usize> = Vec::new();
-
-            let mut count: usize = 0;
-            // Add in the language tags MANUALLY :(
-            let mut pair = false;
-            let lines = description
-                .split('\n')
-                .map(|line| {
-                    count += 1;
-                    if line.starts_with("```") && !pair {
-                        pair = true;
-                        format!("{}{}", line, "python") // Python looks really good with the psuedocode
-                    } else if line.starts_with("```") {
-                        pair = false;
-                        closing_code_block_lines.push(count);
-                        line.to_string()
-                    } else {
-                        line.to_string()
-                    }
-                })
-                .collect::<Vec<String>>();
-
-            let lines_to_remove: std::collections::HashSet<usize> = closing_code_block_lines
-                .iter()
-                .filter_map(|&line_num| {
-                    if line_num > 1 {
-                        Some(line_num - 1) // Line numbers are 1-indexed, so subtract 1 to get the previous line
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            description = lines
-                .into_iter()
-                .enumerate()
-                .filter_map(|(idx, line)| {
-                    let line_number = idx + 1; // Convert to 1-indexed
-                    if lines_to_remove.contains(&line_number) {
-                        None // Skip this line
-                    } else {
-                        Some(line)
-                    }
-                })
-                .collect::<Vec<String>>()
-                .join("\n");
-
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
-
-            let lang = Language::C;
-
-            // If there is a language snippet, write it out
-            if let Some(code) = data.get_editor_data_by_language(&lang) {
-                // Get the filename
-                let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
-
-                fs::create_dir_all("code")?;
-                let path = format!("code/{}", filename);
-                fs::write(&path, code)?;
-                println!("Saved {}", path);
-            }
         }
 
         skip += limit;
@@ -380,6 +335,57 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // No errors, we're good.
     Ok(())
+}
+
+fn build_markdown(description: String) -> Result<String, Box<dyn Error>> {
+    let mut closing_code_block_lines: Vec<usize> = Vec::new();
+
+    let mut count: usize = 0;
+    // Add in the language tags MANUALLY :(
+    let mut pair = false;
+    let lines = description
+        .split('\n')
+        .map(|line| {
+            count += 1;
+            if line.starts_with("```") && !pair {
+                pair = true;
+                format!("{}{}", line, "python") // Python looks really good with the psuedocode
+            } else if line.starts_with("```") {
+                pair = false;
+                closing_code_block_lines.push(count);
+                line.to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<String>>();
+
+    let lines_to_remove: std::collections::HashSet<usize> = closing_code_block_lines
+        .iter()
+        .filter_map(|&line_num| {
+            if line_num > 1 {
+                Some(line_num - 1) // Line numbers are 1-indexed, so subtract 1 to get the previous line
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let description = lines
+        .into_iter()
+        .enumerate()
+        .filter_map(|(idx, line)| {
+            let line_number = idx + 1; // Convert to 1-indexed
+            if lines_to_remove.contains(&line_number) {
+                None // Skip this line
+            } else {
+                Some(line)
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    Ok(description)
 }
 
 fn establish_tags(
