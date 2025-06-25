@@ -38,7 +38,7 @@ enum EntryTags {
 }
 
 #[derive(Iden)]
-enum ProgrammingLanguages {
+enum Languages {
     Table,
     Id,
     Name,
@@ -61,6 +61,7 @@ fn create_entries_table() -> TableCreateStatement {
                 .not_null()
                 .primary_key(),
         )
+        .col(ColumnDef::new(Entries::Name).string_len(255).not_null())
         .col(ColumnDef::new(Entries::AcRate).float().not_null())
         .col(
             ColumnDef::new(Entries::Difficulty)
@@ -137,17 +138,17 @@ fn create_entry_tags_table() -> TableCreateStatement {
 
 fn create_languages_table() -> TableCreateStatement {
     Table::create()
-        .table(ProgrammingLanguages::Table)
+        .table(Languages::Table)
         .if_not_exists()
         .col(
-            ColumnDef::new(ProgrammingLanguages::Id)
+            ColumnDef::new(Languages::Id)
                 .integer()
                 .not_null()
                 .auto_increment()
                 .primary_key(),
         )
         .col(
-            ColumnDef::new(ProgrammingLanguages::Name)
+            ColumnDef::new(Languages::Name)
                 .string_len(50)
                 .unique_key()
                 .not_null(),
@@ -181,7 +182,7 @@ fn create_entry_languages_table() -> TableCreateStatement {
             ForeignKey::create()
                 .name("fk_entry_languages_language_id")
                 .from(EntryLanguages::Table, EntryLanguages::LanguageId)
-                .to(ProgrammingLanguages::Table, ProgrammingLanguages::Id)
+                .to(Languages::Table, Languages::Id)
                 .on_delete(ForeignKeyAction::Cascade),
         )
         .to_owned()
@@ -326,7 +327,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     Entries::Description,
                     Entries::AcRate,
                     Entries::Difficulty,
-                    Entries::Frequency,
                 ])
                 .to_owned();
 
@@ -337,7 +337,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 description.into(),
                 question.ac_rate.into(),
                 question.difficulty.into(),
-                question.freq_bar.into(),
             ])?;
 
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
@@ -415,23 +414,19 @@ fn establish_languages(
 
         // Insert language if it doesn't exist
         let lang_insert = Query::insert()
-            .into_table(ProgrammingLanguages::Table)
-            .columns([ProgrammingLanguages::Name])
+            .into_table(Languages::Table)
+            .columns([Languages::Name])
             .values([lang_name.clone().into()])?
-            .on_conflict(
-                OnConflict::column(ProgrammingLanguages::Name)
-                    .do_nothing()
-                    .to_owned(),
-            )
+            .on_conflict(OnConflict::column(Languages::Name).do_nothing().to_owned())
             .to_owned();
 
         conn.execute(&lang_insert.to_string(SqliteQueryBuilder), ())?;
 
         // Get the language ID
         let lang_select = Query::select()
-            .column(ProgrammingLanguages::Id)
-            .from(ProgrammingLanguages::Table)
-            .and_where(Expr::col(ProgrammingLanguages::Name).eq(&lang_name))
+            .column(Languages::Id)
+            .from(Languages::Table)
+            .and_where(Expr::col(Languages::Name).eq(&lang_name))
             .to_owned();
 
         let mut stmt = conn.prepare(&lang_select.to_string(SqliteQueryBuilder))?;
