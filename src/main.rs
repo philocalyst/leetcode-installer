@@ -68,7 +68,7 @@ fn create_entries_table() -> TableCreateStatement {
                 .string_len(255)
                 .not_null(),
         )
-        .col(ColumnDef::new(Entries::Frequency).float().not_null())
+        .col(ColumnDef::new(Entries::Frequency).float())
         .col(ColumnDef::new(Entries::Name).string_len(255).not_null())
         .col(
             ColumnDef::new(Entries::PremiumStatus)
