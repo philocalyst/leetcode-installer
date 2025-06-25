@@ -141,6 +141,7 @@ fn create_languages_table() -> TableCreateStatement {
         .col(
             ColumnDef::new(ProgrammingLanguages::Name)
                 .string_len(50)
+                .unique_key()
                 .not_null(),
         )
         .to_owned()
