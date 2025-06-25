@@ -254,11 +254,42 @@ async fn main() -> Result<(), Box<dyn Error>> {
         for question in questions {
             // Fetch the editor data for this problem
             let slug = question.title_slug.clone();
-
             // Parse the ID into a u32 (why is it a string chat)
             let question_id: u32 = question.frontend_question_id.parse()?;
 
-            let mut query = Query::insert()
+            // Handle premium vs free questions with optional values
+            let (description, editor_data) = if question.paid_only {
+                // Can't access the description of a paid question (right now)
+                (String::new(), None)
+            } else {
+                let data = EditorDataRequest::new(slug.clone()).send().await?;
+                // Get the HTML description
+                let content = data.data.question.content.clone();
+                // Make it beautiful markdown
+                let mut description = html2md::parse_html(&content);
+                description = build_markdown(description)?;
+                (description, Some(data))
+            };
+
+            // Process editor data if available (non-premium questions)
+            if let Some(data) = &editor_data {
+                // Get the questions supported languages
+                let languages = build_language_list(&data.data);
+                establish_languages(&connection, &languages, question_id)?;
+                let lang = Language::C;
+                // If there is a language snippet, write it out
+                if let Some(code) = data.get_editor_data_by_language(&lang) {
+                    // Get the filename
+                    let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
+                    fs::create_dir_all("code")?;
+                    let path = format!("code/{}", filename);
+                    fs::write(&path, code)?;
+                    println!("Saved {}", path);
+                }
+            }
+
+            // Build and execute the database query with unified values
+            let query = Query::insert()
                 .into_table(Entries::Table)
                 .columns([
                     Entries::Id,
@@ -273,55 +304,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         .update_column(Entries::Id)
                         .to_owned(),
                 )
-                .to_owned();
-
-            // Premium questions look different...
-            if question.paid_only {
-                query.values([
-                    question.frontend_question_id.into(),
-                    question.title.into(),
-                    question.paid_only.into(),
-                    "".into(), // Can't access the description of a paid question (right now)
-                    question.ac_rate.into(),
-                    question.difficulty.into(),
-                ])?;
-            } else {
-                let data = EditorDataRequest::new(slug.clone()).send().await?;
-
-                // Get the HTML description
-                let description = data.data.question.content.clone();
-
-                // Make it beautiful markdown
-                let mut description = html2md::parse_html(&description);
-
-                // Get the questions supported languages
-                let languages = build_language_list(&data.data);
-                establish_languages(&connection, &languages, question_id)?;
-
-                let lang = Language::C;
-
-                description = build_markdown(description)?;
-
-                // If there is a language snippet, write it out
-                if let Some(code) = data.get_editor_data_by_language(&lang) {
-                    // Get the filename
-                    let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
-
-                    fs::create_dir_all("code")?;
-                    let path = format!("code/{}", filename);
-                    fs::write(&path, code)?;
-                    println!("Saved {}", path);
-                }
-
-                query.values([
+                .values([
                     question.frontend_question_id.into(),
                     question.title.into(),
                     question.paid_only.into(),
                     description.into(),
                     question.ac_rate.into(),
                     question.difficulty.into(),
-                ])?;
-            }
+                ])?
+                .to_owned();
 
             // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
             let tags = &question.topic_tags.unwrap_or(vec![]);
