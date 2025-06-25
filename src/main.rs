@@ -255,6 +255,86 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             let languages = build_language_list(&data.data);
 
+            // Insert tags and create entry-tag relationships
+            for tag in &tags {
+                // Insert tag if it doesn't exist
+                let tag_insert = Query::insert()
+                    .into_table(Tags::Table)
+                    .columns([Tags::Name, Tags::Slug])
+                    .values([tag.name.clone().into(), tag.slug.clone().into()])?
+                    .on_conflict(OnConflict::column(Tags::Slug).do_nothing().to_owned())
+                    .to_owned();
+
+                connection.execute(&tag_insert.to_string(SqliteQueryBuilder), ())?;
+
+                // Get the tag ID
+                let tag_select = Query::select()
+                    .column(Tags::Id)
+                    .from(Tags::Table)
+                    .and_where(Expr::col(Tags::Slug).eq(&tag.slug))
+                    .to_owned();
+
+                let mut stmt = connection.prepare(&tag_select.to_string(SqliteQueryBuilder))?;
+                let tag_id: i32 = stmt.query_row([], |row| row.get(0))?;
+
+                // Create entry-tag relationship
+                let entry_tag_insert = Query::insert()
+                    .into_table(EntryTags::Table)
+                    .columns([EntryTags::EntryId, EntryTags::TagId])
+                    .values([question.frontend_question_id.clone().into(), tag_id.into()])?
+                    .on_conflict(
+                        OnConflict::columns([EntryTags::EntryId, EntryTags::TagId])
+                            .do_nothing()
+                            .to_owned(),
+                    )
+                    .to_owned();
+
+                connection.execute(&entry_tag_insert.to_string(SqliteQueryBuilder), ())?;
+            }
+
+            // Insert languages and create entry-language relationships
+            for language in &languages {
+                let lang_name = language.to_string();
+
+                // Insert language if it doesn't exist
+                let lang_insert = Query::insert()
+                    .into_table(ProgrammingLanguages::Table)
+                    .columns([ProgrammingLanguages::Name])
+                    .values([lang_name.clone().into()])?
+                    .on_conflict(
+                        OnConflict::column(ProgrammingLanguages::Name)
+                            .do_nothing()
+                            .to_owned(),
+                    )
+                    .to_owned();
+
+                connection.execute(&lang_insert.to_string(SqliteQueryBuilder), ())?;
+
+                // Get the language ID
+                let lang_select = Query::select()
+                    .column(ProgrammingLanguages::Id)
+                    .from(ProgrammingLanguages::Table)
+                    .and_where(Expr::col(ProgrammingLanguages::Name).eq(&lang_name))
+                    .to_owned();
+
+                let mut stmt = connection.prepare(&lang_select.to_string(SqliteQueryBuilder))?;
+                let lang_id: i32 = stmt.query_row([], |row| row.get(0))?;
+
+                // Create entry-language relationship
+                let entry_lang_insert = Query::insert()
+                    .into_table(EntryLanguages::Table)
+                    .columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
+                    .values([question.frontend_question_id.clone().into(), lang_id.into()])?
+                    .on_conflict(
+                        OnConflict::columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
+                            .do_nothing()
+                            .to_owned(),
+                    )
+                    .to_owned();
+
+                connection.execute(&entry_lang_insert.to_string(SqliteQueryBuilder), ())?;
+            }
+
             let mut closing_code_block_lines: Vec<usize> = Vec::new();
 
             let mut count: usize = 0;
