@@ -3,3 +3,5 @@ src/cpp
 src/db.sqlite3
 src/db.sqlite3-shm
 src/test.md
+code
+db.sqlite3

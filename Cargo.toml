@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+futures = "0.3.31"
 html2md = "0.2.15"
 leetcode-core = {git = "https://github.com/philocalyst/leetcode-tui"}
 limbo = "0.0.20"
 rusqlite = "0.36.0"
 sea-query = "0.32.6"
 tokio = { version = "1.45.1", features = ["full"] }
+tokio-stream = "0.1.17"

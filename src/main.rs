@@ -1,15 +1,18 @@
 use core::panic;
+use futures::StreamExt;
+use futures::prelude;
 use html2md;
 use leetcode_core::GQLLeetcodeRequest;
 use leetcode_core::errors::LcAppError;
 use leetcode_core::types::editor_data::QuestionEditorData;
 use leetcode_core::types::language::Language;
-use leetcode_core::types::problemset_question_list::TopicTag;
+use leetcode_core::types::problemset_question_list::{Question, TopicTag};
 use leetcode_core::{EditorDataRequest, QuestionRequest};
 use rusqlite;
 use rusqlite::Connection;
 use sea_query::*;
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
 #[derive(Iden)]
@@ -233,6 +236,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Build out the storage solution
     build_db(&connection)?;
 
+    let connection = Arc::new(Mutex::new(connection));
+
     // Read your LeetCode cookies from env vars
     let csrf = env::var("LEETCODE_CSRF_TOKEN")?;
     let session = env::var("LEETCODE_SESSION")?;
@@ -240,8 +245,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Initialize the HTTP client
     leetcode_core::init(&csrf, &session).await?;
 
-    let mut skip = 170;
-    let limit = 170;
+    let mut skip = 0;
+    let limit = 200;
 
     loop {
         // Fetch a page of questions
@@ -251,84 +256,111 @@ async fn main() -> Result<(), Box<dyn Error>> {
             break;
         }
 
-        for question in questions {
-            // Fetch the editor data for this problem
-            let slug = question.title_slug.clone();
-
-            // Parse the ID into a u32 (why is it a string chat)
-            let question_id: u32 = question.frontend_question_id.parse()?;
-
-            // Handle premium vs free questions with optional values
-            let (description, editor_data) = if question.paid_only {
-                // Can't access the description of a paid question (right now)
-                (String::new(), None)
-            } else {
-                let data = EditorDataRequest::new(slug.clone()).send().await?;
-                // Get the HTML description
-                let content = data.data.question.content.clone();
-                // Make it beautiful markdown
-                let mut description = html2md::parse_html(&content);
-                description = build_markdown(description)?;
-                (description, Some(data))
-            };
-
-            // Process editor data if available (non-premium questions)
-            if let Some(data) = &editor_data {
-                // Get the questions supported languages
-                let languages = build_language_list(&data.data);
-                establish_languages(&connection, &languages, question_id)?;
-
-                let lang = Language::C;
-                // If there is a language snippet, write it out
-                if let Some(code) = data.get_editor_data_by_language(&lang) {
-                    // Get the filename
-                    let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
-
-                    // Create the code source directory
-                    fs::create_dir_all("code")?;
-                    let path = format!("code/{}", filename);
-                    fs::write(&path, code)?;
-                    println!("Saved {}", path);
+        let question_stream = futures::stream::iter(questions.into_iter().map(|question| {
+            let connection = connection.clone(); // Clone the Arc, not the Connection
+            async move {
+                match process_question(question, connection).await {
+                    Ok(_) => println!("Successfully processed question"),
+                    Err(e) => eprintln!("Error processing question: {}", e),
                 }
             }
+        }));
 
-            // Build and execute the database query with unified values
-            let query = Query::insert()
-                .into_table(Entries::Table)
-                .columns([
-                    Entries::Id,
-                    Entries::Name,
-                    Entries::PremiumStatus,
-                    Entries::Description,
-                    Entries::AcRate,
-                    Entries::Difficulty,
-                ])
-                .on_conflict(
-                    OnConflict::column(Entries::Id)
-                        .update_column(Entries::Id)
-                        .to_owned(),
-                )
-                .values([
-                    question.frontend_question_id.into(),
-                    question.title.into(),
-                    question.paid_only.into(),
-                    description.into(),
-                    question.ac_rate.into(),
-                    question.difficulty.into(),
-                ])?
-                .to_owned();
-
-            // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
-            let tags = &question.topic_tags.unwrap_or(vec![]);
-            establish_tags(&connection, &tags, question_id)?;
-
-            connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
-        }
+        question_stream
+            .buffer_unordered(3)
+            .collect::<Vec<_>>()
+            .await;
 
         skip += limit;
     }
 
     // No errors, we're good.
+    Ok(())
+}
+
+async fn process_question(
+    question: Question,
+    connection: Arc<Mutex<Connection>>,
+) -> Result<(), Box<dyn Error>> {
+    // Fetch the editor data for this problem
+    let slug = question.title_slug.clone();
+
+    // Parse the ID into a u32 (why is it a string chat)
+    let question_id: u32 = question.frontend_question_id.parse()?;
+
+    // Handle premium vs free questions with optional values
+    let (description, editor_data) = if question.paid_only {
+        // Can't access the description of a paid question (right now)
+        (String::new(), None)
+    } else {
+        let data = EditorDataRequest::new(slug.clone()).send().await?;
+        // Get the HTML description
+        let content = data.data.question.content.clone();
+        // Make it beautiful markdown
+        let mut description = html2md::parse_html(&content);
+        description = build_markdown(description)?;
+        (description, Some(data))
+    };
+
+    // Process editor data if available (non-premium questions)
+    if let Some(data) = &editor_data {
+        // Get the questions supported languages
+        let languages = build_language_list(&data.data);
+
+        {
+            let conn = connection.lock().unwrap();
+            establish_languages(&conn, &languages, question_id)?;
+        }
+
+        let lang = Language::C;
+        // If there is a language snippet, write it out
+        if let Some(code) = data.get_editor_data_by_language(&lang) {
+            // Get the filename
+            let filename = format!("{}_{}.{}", question_id, slug, lang.get_extension());
+
+            // Create the code source directory
+            fs::create_dir_all("code")?;
+            let path = format!("code/{}", filename);
+            fs::write(&path, code)?;
+            println!("Saved {}", path);
+        }
+    }
+
+    // Build and execute the database query with unified values
+    let query = Query::insert()
+        .into_table(Entries::Table)
+        .columns([
+            Entries::Id,
+            Entries::Name,
+            Entries::PremiumStatus,
+            Entries::Description,
+            Entries::AcRate,
+            Entries::Difficulty,
+        ])
+        .on_conflict(
+            OnConflict::column(Entries::Id)
+                .update_column(Entries::Id)
+                .to_owned(),
+        )
+        .values([
+            question.frontend_question_id.into(),
+            question.title.into(),
+            question.paid_only.into(),
+            description.into(),
+            question.ac_rate.into(),
+            question.difficulty.into(),
+        ])?
+        .to_owned();
+
+    // Get topics tags, if none are found, just initalize as an empty vector. For easy interface with the DB.
+    let tags = &question.topic_tags.unwrap_or(vec![]);
+
+    {
+        let conn = connection.lock().unwrap();
+        establish_tags(&conn, &tags, question_id)?;
+        conn.execute(&query.to_string(SqliteQueryBuilder), ())?;
+    }
+
     Ok(())
 }
 
@@ -400,7 +432,15 @@ fn establish_tags(
 
         conn.execute(&tag_insert.to_string(SqliteQueryBuilder), ())?;
 
-        let tag_id: u32 = tag.id.parse()?;
+        // Get the tag_id by querying for it after insertion
+        let tag_id_query = Query::select()
+            .column(Tags::Id)
+            .from(Tags::Table)
+            .and_where(Expr::col(Tags::Slug).eq(&tag.slug))
+            .to_owned();
+
+        let mut stmt = conn.prepare(&tag_id_query.to_string(SqliteQueryBuilder))?;
+        let tag_id: u32 = stmt.query_row([], |row| Ok(row.get::<_, u32>(0)?))?;
 
         // Create entry-tag relationship
         let entry_tag_insert = Query::insert()
@@ -408,13 +448,8 @@ fn establish_tags(
             .columns([EntryTags::EntryId, EntryTags::TagId])
             .values([question_id.into(), tag_id.into()])?
             .on_conflict(
-                OnConflict::column(EntryTags::TagId) // Tag ID could change, or at least I feel it's more mutable
-                    .update_column(EntryTags::TagId)
-                    .to_owned(),
-            )
-            .on_conflict(
-                OnConflict::column(EntryTags::EntryId) // Entry ID is static so we shouldn't worry.
-                    .do_nothing()
+                OnConflict::columns([EntryTags::EntryId, EntryTags::TagId])
+                    .update_columns([EntryTags::EntryId, EntryTags::TagId])
                     .to_owned(),
             )
             .to_owned();
@@ -450,13 +485,8 @@ fn establish_languages(
             .columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
             .values([question_id.into(), lang_id.into()])?
             .on_conflict(
-                OnConflict::column(EntryLanguages::LanguageId) // Language ID could change, or at least I feel it's more mutable
-                    .update_column(EntryLanguages::LanguageId)
-                    .to_owned(),
-            )
-            .on_conflict(
-                OnConflict::column(EntryLanguages::EntryId) // Entry ID is static so we shouldn't worry.
-                    .do_nothing()
+                OnConflict::columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
+                    .update_columns([EntryLanguages::EntryId, EntryLanguages::LanguageId])
                     .to_owned(),
             )
             .to_owned();
