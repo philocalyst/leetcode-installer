@@ -328,6 +328,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     Entries::AcRate,
                     Entries::Difficulty,
                 ])
+                .on_conflict(
+                    OnConflict::column(Entries::Id)
+                        .update_column(Entries::Id)
+                        .to_owned(),
+                )
                 .to_owned();
 
             query.values([
@@ -341,9 +346,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             connection.execute(&query.to_string(SqliteQueryBuilder), ())?;
 
-            let lang = Language::Cpp;
+            let lang = Language::C;
 
-            // If there is a C++ snippet, write it out
+            // If there is a language snippet, write it out
             if let Some(code) = data.get_editor_data_by_language(&lang) {
                 // Get the filename
                 let mut filename = data.get_filename(&lang)?;

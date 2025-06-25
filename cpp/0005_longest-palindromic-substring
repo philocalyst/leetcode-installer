@@ -1,6 +1,3 @@
-class Solution {
-public:
-    string longestPalindrome(string s) {
-        
-    }
-};
+char* longestPalindrome(char* s) {
+    
+}
