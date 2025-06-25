@@ -357,6 +357,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 // Remove the language identifier
                 let (filename, _) = filename.split_at(final_split);
 
+                println!("{filename}");
+
                 fs::create_dir_all("cpp")?;
                 let path = format!("cpp/{}", filename);
                 fs::write(&path, code)?;
